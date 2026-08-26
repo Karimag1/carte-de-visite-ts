@@ -1,0 +1,53 @@
+# Publie la carte sur GitHub Pages à chaque modification,
+# remplit l'adresse dans les balises de partage et génère le QR code
+# de l'adresse finale (…/qr-carte.png).
+name: Publier la carte sur GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurer Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Préparer le site et le QR code
+        run: |
+          BASE="${{ steps.pages.outputs.base_url }}"
+          echo "Adresse de la carte : ${BASE}/"
+          mkdir -p _site
+          cp index.html louis-hage.vcf carte-virtuelle-louis-hage.png .nojekyll _site/
+          sed -i "s#__BASE_URL__#${BASE}#g" _site/index.html
+          pip install --quiet segno
+          python3 make_qr.py "${BASE}/" _site
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Déployer
+        id: deployment
+        uses: actions/deploy-pages@v4
